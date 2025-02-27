@@ -324,10 +324,10 @@ def recommend_season(request):
 ```python
 class Recommended(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="recommends")
-    emotion = models.IntegerField(null=True)  # 사용자의 기분 (1~100 범위로 저장)
-    weather = models.CharField(max_length=100)  # 날씨 
-    food = models.CharField(max_length=100)  # 음식
-    created_at = models.DateTimeField(auto_now_add=True)  # 저장 시간
+    emotion = models.IntegerField(null=True)  # ユーザーの気分（1〜100の範囲で保存）
+    weather = models.CharField(max_length=100)  # 天気
+    food = models.CharField(max_length=100)  # 食べ物
+    created_at = models.DateTimeField(auto_now_add=True)  # 保存時間
     recommended_movies = models.TextField(blank=True, null=True)
     recommended_genres = models.TextField(blank=True, null=True)
 ```
@@ -353,17 +353,17 @@ def today(request):
         serializer = TodaySerializer(data=request.data)
         print("Received POST request with data:", request.data)
         
-        # 감정, 날씨, 음식 정보 저장 및 장르 추천 로직
+        # 感情、天気、食べ物の情報を保存しジャンル推薦ロジック
         if serializer.is_valid(raise_exception=True):
             emotion = serializer.validated_data['emotion']
             weather = serializer.validated_data['weather']
             food = serializer.validated_data['food']
             
-            # 기본 장르 추천 기준 설정
+            # 基本ジャンル推薦基準の設定
             genre_scores = defaultdict(int)
             genres = []
 
-            # 기분에 따른 장르 점수 추가
+            # 気分に応じたジャンルスコア追加
             if emotion > 70:
                 genre_scores['액션'] += 30
                 genre_scores['코미디'] += 30
@@ -380,7 +380,7 @@ def today(request):
                 genre_scores['로맨스'] += 20
                 genres.extend(['스릴러', '미스터리', '로맨스'])
 
-            # 날씨에 따른 장르 점수 추가
+            # 天気に応じたジャンルスコア追加
             if weather == '맑음':
                 genre_scores['액션'] += 20
                 genre_scores['모험'] += 20
@@ -402,63 +402,63 @@ def today(request):
                 genre_scores['역사'] += 20
                 genres.extend(['음악', '가족', '역사'])
             
-            # 음식에 따른 장르 점수 추가
-            if food == '젤리':  # 젤리
+            # 食べ物に応じたジャンルスコア追加
+            if food == '젤리':  # グミ
                 genre_scores['드라마'] += 20
                 genre_scores['액션'] += 30
                 genres.extend(['드라마', '액션'])
-            elif food == '초콜릿':  # 초콜릿
+            elif food == '초콜릿':  # チョコレート
                 genre_scores['로맨스'] += 20
                 genre_scores['멜로'] += 30
                 genres.extend(['멜로', '로맨스'])
-            elif food == '과자':  # 과자
+            elif food == '과자':  # スナック
                 genre_scores['애니메이션'] += 25
                 genre_scores['가족'] += 40
                 genre_scores['다큐멘터리'] += 30
                 genre_scores['역사'] += 20
                 genres.extend(['애니메이션', '가족', '다큐멘터리', '역사'])
-            elif food == '사탕':  # 사탕
+            elif food == '사탕':  # キャンディー
                 genre_scores['모험'] += 30
                 genre_scores['판타지'] += 20
                 genre_scores['스릴러'] += 20
                 genres.extend(['모험', '판타지', '스릴러'])
 
 
-            # 장르 점수 높은 순으로 정렬 후 상위 3개의 장르 선택
+            # ジャンルスコアの高い順にソートして上位3つのジャンルを選択
             sorted_genres = sorted(genre_scores.items(), key=lambda x: x[1], reverse=True)
             genres = [genre for genre, score in sorted_genres[:3]]
             print("Final genres:", genres)  
 
-            # 장르 점수 비율 계산
+            # ジャンルスコア比率の計算
             total_score = sum(genre_scores.values())
             if total_score == 0:
                 return Response({"detail": "No valid genre scores."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Q 객체를 사용하여 여러 장르에 대해 OR 조건을 생성
+            # Qオブジェクトを使用して複数のジャンルに対するOR条件を生成
             q = Q()
             for genre in genres:
                 q |= Q(genres__contains=genre)
 
-            # 필터링된 영화들을 랜덤으로 15개 추천
+            # フィルタリングされた映画をランダムに15本推薦
             recommended_movies = Movie.objects.filter(q)
 
-            # 추천된 영화가 12개 이상일 경우 랜덤으로 12개 선택 (영화가 12개 미만일 경우 모두 반환)
+            # 推薦された映画が12本以上の場合はランダムに12本選択（映画が12本未満の場合はすべて返す）
             recommended_movies = random.sample(list(recommended_movies), min(len(recommended_movies), 12))
 
-            # 추천된 영화들 직렬화
+            # 推薦された映画をシリアライズ
             movie_serializer = MovieSerializer(recommended_movies, many=True)
 
-            # 추천 정보를 DB에 저장
+            # 推薦情報をDBに保存
             recommended_instance = Recommended.objects.create(
                 user=request.user, 
                 emotion=emotion, 
                 weather=weather, 
                 food=food,
-                recommended_movies=recommended_movies,  # 추천된 영화들을 저장
+                recommended_movies=recommended_movies,  # 推薦された映画を保存
                 recommended_genres=genres,
             )
 
-             # 저장된 인스턴스 직렬화
+             # 保存されたインスタンスをシリアライズ
             today_serializer = TodaySerializer(recommended_instance)
 
             return Response({ 
@@ -466,7 +466,6 @@ def today(request):
                 'recommended_movies': movie_serializer.data,
                 'today_serializer': today_serializer.data }
                 , status=status.HTTP_200_OK)
-
 ```
 
 ### 🤖 生成型AIを活用した部分
@@ -483,13 +482,13 @@ from .models import Actor, Movie, Review
 
 @api_view(['GET'])
 def search(request):
-    query = request.GET.get('search', '')  # 쿼리 파라미터에서 검색어 가져오기
-    if query:
-        movies = Movie.objects.filter(Q(title__icontains=query) | Q(overview__icontains=query))  # 제목 또는 개요에서 검색
-    else:
-        movies = Movie.objects.none()
-    serializer = MovieListSerializer(movies, many=True)
-    return Response(serializer.data)
+   query = request.GET.get('search', '')  # クエリパラメータから検索語を取得
+   if query:
+       movies = Movie.objects.filter(Q(title__icontains=query) | Q(overview__icontains=query))  # タイトルまたは概要から検索
+   else:
+       movies = Movie.objects.none()
+   serializer = MovieListSerializer(movies, many=True)
+   return Response(serializer.data)
 ```
 - 上記のコードは単純に映画データベースからユーザーが入力した検索ワードに従って関連映画を照会する機能で、もし検索ワードが提供されなかった場合はデフォルト値として空の文字列を使用しました。
 - 映画検索機能を実装するためにChatGPTを利用しました。
