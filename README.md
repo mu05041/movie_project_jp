@@ -124,18 +124,18 @@ CineBiteは、ユーザーの気分、天気、食べたいスナックに基づ
 # 랜덤으로 한 영화를 추천
 @api_view(['GET'])
 def movie_random_detail(request, movie_pk=None):
-    # movie_pk가 없으면 랜덤으로 선택
-    if movie_pk is None:
-        movie_count = Movie.objects.count()
-        if movie_count == 0:
-            return Response({"error": "No movies available."}, status=404)
-        random_index = random.randint(0, movie_count - 1)
-        movie = Movie.objects.all()[random_index]
-    else:
-        movie = get_object_or_404(Movie, pk=movie_pk)
+   # movie_pkがない場合はランダムに選択
+   if movie_pk is None:
+       movie_count = Movie.objects.count()
+       if movie_count == 0:
+           return Response({"error": "No movies available."}, status=404)
+       random_index = random.randint(0, movie_count - 1)
+       movie = Movie.objects.all()[random_index]
+   else:
+       movie = get_object_or_404(Movie, pk=movie_pk)
 
-    serializer = MovieSerializer(movie)
-    return Response(serializer.data)
+   serializer = MovieSerializer(movie)
+   return Response(serializer.data)
 ```
 
 #### 映画推薦ロジック
@@ -146,46 +146,46 @@ def movie_random_detail(request, movie_pk=None):
 ```python
 @api_view(['GET'])
 def recommend_like_movies(request):
-    # 인증된 사용자만 접근 가능
+    # 認証されたユーザーのみアクセス可能
     if not request.user.is_authenticated:
         return Response({'detail': 'Authentication credentials were not provided.'}, status=401)
     
-    # 사용자가 좋아요를 누른 영화들을 가져옴
+    # ユーザーがいいねを押した映画を取得
     liked_movies = request.user.like_movies.all()
     
-    # 사용자가 좋아한 영화들의 장르 추출
+    # ユーザーが好きな映画のジャンルを抽出
     liked_genres = liked_movies.values_list('genres', flat=True)
     
-    # 장르별 비율 계산
+    # ジャンル別の比率を計算
     genre_count = Counter(liked_genres)
     total_genres = len(liked_genres)
     
-    # 각 장르의 비율 계산 (0과 나누는 에러 방지)
+    # 各ジャンルの比率を計算（0で割るエラー防止）
     genre_ratio = {genre: count / total_genres for genre, count in genre_count.items()}
     
-    # 추천 영화들을 담을 리스트
+    # 推薦映画を入れるリスト
     recommended_movies = []
     
-    # 장르 비율에 맞춰 추천 영화 추출
+    # ジャンル比率に合わせて推薦映画を抽出
     for genre, ratio in genre_ratio.items():
-        # 장르에 맞는 영화를 찾고, 사용자가 아직 좋아요를 누르지 않은 영화를 필터링
+        # ジャンルに合った映画を探し、ユーザーがまだいいねを押していない映画をフィルタリング
         genre_movies = Movie.objects.filter(genres=genre).exclude(like_users=request.user)
         
-        # 추천할 영화 수를 비율에 맞춰 결정 (최대 15개 추천)
+        # 推薦する映画数を比率に合わせて決定（最大15本推薦）
         num_recommended = int(ratio * 15)
-        num_recommended = max(num_recommended, 3)  # 최소 1개 영화는 추천
+        num_recommended = max(num_recommended, 3)  # 最低1本は推薦
         
-         # 무작위로 선택 (단, 영화 수가 부족할 경우 최대 가능한 수만 선택)
+        # ランダムに選択（ただし、映画数が不足する場合は最大可能な数だけ選択）
         genre_movies = list(genre_movies)
         if genre_movies:
             sampled_movies = random.sample(genre_movies, min(len(genre_movies), num_recommended))
             recommended_movies.extend(sampled_movies)
     
-    # 추천 영화들을 직렬화
-    recommended_movies = list(set(recommended_movies))  # 중복 제거
+    # 推薦映画をシリアライズ
+    recommended_movies = list(set(recommended_movies))  # 重複除去
     recommended_movies = random.sample(recommended_movies, min(len(recommended_movies), 15)) 
     
-    # 직렬화
+    # シリアライズ
     serializer = MovieSerializer(recommended_movies, many=True)
     return Response(serializer.data)
 ```
@@ -194,37 +194,36 @@ def recommend_like_movies(request):
 - ユーザーがいいねした俳優の映画の中から、ユーザーがまだいいねを押していない映画を推薦する機能です。
 - 各俳優について最大3つの映画をランダムに選択し、重複を避けながら最終的に最大15の映画を推薦します。
 ```python
-@api_view(['GET'])
 def recommend_like_actors(request):
-      # 인증된 사용자만 접근 가능
+    # 認証されたユーザーのみアクセス可能
     if not request.user.is_authenticated:
         return Response({'detail': 'Authentication credentials were not provided.'}, status=401)
     
-    # 사용자가 좋아요를 배우들을 가져옴
+    # ユーザーがいいねした俳優たちを取得
     liked_actors = request.user.like_actors.all()
     
-    # 추천할 영화들을 담을 리스트
+    # 推薦する映画を入れるリスト
     recommended_movies = []
     
-    # 사용자가 좋아요한 배우들의 다른 영화들을 추천
+    # ユーザーがいいねした俳優の他の映画を推薦
     for actor in liked_actors:
-        # 해당 배우가 출연한 영화들 가져오기
+        # その俳優が出演した映画を取得
         actor_movies = Movie.objects.filter(actors=actor).exclude(like_users=request.user)
         
-        # 추천할 영화들을 비율에 맞춰 추출 (최대 15개 추천)
-        num_recommended = min(len(actor_movies), 3)  # 최소 1개 영화는 추천
+        # 推薦する映画を比率に合わせて抽出（最大15本推薦）
+        num_recommended = min(len(actor_movies), 3)  # 最低1本は推薦
         
-        # 무작위로 선택 (단, 영화 수가 부족할 경우 최대 가능한 수만 선택)
+        # ランダムに選択（ただし、映画数が不足する場合は最大可能な数だけ選択）
         actor_movies = list(actor_movies)
         if actor_movies:
             sampled_movies = random.sample(actor_movies, num_recommended)
             recommended_movies.extend(sampled_movies)
     
-    # 추천 영화들을 직렬화
-    recommended_movies = list(set(recommended_movies))  # 중복 제거
+    # 推薦映画をシリアライズ
+    recommended_movies = list(set(recommended_movies))  # 重複除去
     recommended_movies = random.sample(recommended_movies, min(len(recommended_movies), 15))
-
-    # 직렬화
+    
+    # シリアライズ
     serializer = MovieSerializer(recommended_movies, many=True)
     return Response(serializer.data)
 ```
@@ -235,31 +234,29 @@ def recommend_like_actors(request):
 ```python
 @api_view(['GET'])
 def movie_latest(request):
-    today = datetime.now().date()  # 현재 날짜
-    # 오늘 이전에 개봉한 영화만 포함
+    today = datetime.now().date()  # 現在の日付
+    # 今日以前に公開された映画のみを含む
     movies = Movie.objects.filter(release_date__lte=today).order_by('-release_date')[:30]
-    # 시리얼라이저를 사용하여 데이터 직렬화
+    # シリアライザーを使用してデータをシリアル化
     serializer = MovieListSerializer(movies, many=True)
-
-    # JSON 응답 반환
+    
+    # JSON応答を返す
     return Response(serializer.data)
-
 
 @api_view(['GET'])
 def movie_popularity(request):
-    movies = Movie.objects.order_by('-popularity')[:30]  # 인기순
-    # 시리얼라이저를 사용하여 데이터 직렬화
+    movies = Movie.objects.order_by('-popularity')[:30]  # 人気順
+    # シリアライザーを使用してデータをシリアル化
     serializer = MovieListSerializer(movies, many=True)
-    # JSON 응답 반환
+    # JSON応答を返す
     return Response(serializer.data)
-
 
 @api_view(['GET'])
 def movie_vote(request):
-    movies = Movie.objects.order_by('-vote_average')[:30]  # 평점순
-    # 시리얼라이저를 사용하여 데이터 직렬화
+    movies = Movie.objects.order_by('-vote_average')[:30]  # 評価順
+    # シリアライザーを使用してデータをシリアル化
     serializer = MovieListSerializer(movies, many=True)
-    # JSON 응답 반환
+    # JSON応答を返す
     return Response(serializer.data)
 ```
 
@@ -267,17 +264,17 @@ def movie_vote(request):
 - ユーザーからリクエストがあった際に、現在の季節に合った映画ジャンルに基づいて推薦映画リストを返す機能を実装しました。
 - 季節に合った映画ジャンルを設定する際、各季節の雰囲気に関連する一般的な映画ジャンルの傾向を参考にしました。
 ```python
-# 계절에 따른 영화 추천 기능
+# 季節に応じた映画推薦機能
 def get_season():
     month = datetime.now().month
     if 3 <= month <= 5:
-        return "봄"  # 봄
+        return "봄"  # 春
     elif 6 <= month <= 8:
-        return "여름"  # 여름
+        return "여름"  # 夏
     elif 9 <= month <= 11:
-        return "가을"  # 가을
+        return "가을"  # 秋
     else:
-        return "겨울"  # 겨울
+        return "겨울"  # 冬
 
 def get_seasonal_genre(season):
     seasonal_genres = {
@@ -290,26 +287,26 @@ def get_seasonal_genre(season):
 
 @api_view(['GET'])
 def recommend_season(request):
-    # 현재 계절을 가져옴
+    # 現在の季節を取得
     season = get_season()
-    # 계절에 맞는 영화 장르 목록을 가져옴
+    # 季節に合った映画ジャンルリストを取得
     genres = get_seasonal_genre(season)
 
-    # Q 객체를 사용하여 여러 장르에 대해 OR 조건을 생성
+    # Q オブジェクトを使用して複数のジャンルに対するOR条件を生成
     q = Q()
     for genre in genres:
         q |= Q(genres__contains=genre)
     
-    # 영화 필터링: 계절에 맞는 장르가 하나라도 포함된 영화들만 필터링
+    # 映画のフィルタリング：季節に合ったジャンルが一つでも含まれている映画のみ
     recommended_movies = list(Movie.objects.filter(q))
     
-    # 랜덤으로 15개의 영화를 선택 (단, 영화 데이터가 15개 미만일 경우 모든 영화 반환)
+    # ランダムに15個の映画を選択（映画データが15個未満の場合は全ての映画を返す）
     recommended_movies = random.sample(recommended_movies, min(len(recommended_movies), 15))
 
-    # MovieSerializer와 연관해서 필터링
+    # MovieSerializerと連携してフィルタリング
     serializer = MovieSerializer(recommended_movies, many=True)
     
-    # 계절 정보와 추천된 영화 목록을 반환
+    # 季節情報と推薦映画リストを返す
     return Response({
         'season': season,
         'recommended_movies': serializer.data
@@ -503,7 +500,7 @@ def search(request):
 
 - プロンプトエンジニアリングを通じて完成した映画検索機能は次の通りです。
 ```python
-# 영화 검색 기능
+# 映画検索機能
 def similarity_score(a, b):
     """Calculate similarity score between two strings."""
     return SequenceMatcher(None, a, b).ratio()
@@ -511,35 +508,35 @@ def similarity_score(a, b):
 
 @api_view(['GET'])
 def search_movie(request):
-    query = request.GET.get('search', '').strip()  # 쿼리 파라미터에서 검색어 가져오기
-    if not query:  # 검색어가 없거나 빈 문자열인 경우
+    query = request.GET.get('search', '').strip()  # クエリパラメータから検索語を取得
+    if not query:  # 検索語がないか空文字列の場合
         return Response(
-            {"message": "검색어를 입력해주세요."},
+            {"message": "検索語を入力してください。"},
             status=400  # Bad Request
         )
 
-    # 제목 또는 개요에서 검색
+    # タイトルまたは概要から検索
     movies = Movie.objects.filter(Q(title__icontains=query) | Q(overview__icontains=query))
-    if not movies.exists():  # 검색 결과가 없는 경우
+    if not movies.exists():  # 検索結果がない場合
         return Response(
-            {"message": f"'{query}'에 대한 검색 결과가 없습니다."},
+            {"message": f"'{query}'に対する検索結果がありません。"},
             status=404  # Not Found
         )
 
-    # 중복 제거 (중복 영화를 제거)
+    # 重複除去（重複映画を除去）
     unique_movies = {movie.id: movie for movie in movies}.values()
 
-    # 유사도 계산 및 정렬
+    # 類似度計算とソート
     movies_with_similarity = []
     for movie in unique_movies:
         similarity = similarity_score(query.lower(), movie.title.lower())
-        movie.similarity = similarity  # `MovieSearchSerializer`의 `similarity` 필드 사용
+        movie.similarity = similarity  # `MovieSearchSerializer`の`similarity`フィールドを使用
         movies_with_similarity.append(movie)
 
-    # 유사도 기준으로 정렬
+    # 類似度基準でソート
     sorted_movies = sorted(movies_with_similarity, key=lambda x: x.similarity, reverse=True)[:15]
 
-    # 직렬화 및 응답 반환
+    # シリアライズとレスポンス返却
     serializer = MovieSearchSerializer(sorted_movies, many=True)
     return Response(serializer.data)
 ```
